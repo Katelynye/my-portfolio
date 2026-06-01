@@ -1,223 +1,33 @@
 {
   "name": "My Portfolio",
-  "cash": 69314.66,
+  "cash": 10000.00,
   "holdings": {
-    "LITX": {
-      "shares": 800,
-      "avg_cost": 38.943,
-      "currency": "USD",
-      "brokers": {
-        "Futu": {
-          "shares": 800,
-          "avg_cost": 38.943
-        }
-      }
+    "AAPL": {
+      "shares": 10,
+      "avg_cost": 175.50
     },
-    "MULL": {
-      "shares": 40,
-      "avg_cost": 539.7,
-      "currency": "USD",
-      "brokers": {
-        "Futu": {
-          "shares": 40,
-          "avg_cost": 539.7
-        }
-      }
-    },
-    "MVLL": {
-      "shares": 490,
-      "avg_cost": 110.25,
-      "currency": "USD",
-      "brokers": {
-        "Futu": {
-          "shares": 90,
-          "avg_cost": 147.828
-        },
-        "IB": {
-          "shares": 400,
-          "avg_cost": 101.79
-        }
-      }
-    },
-    "INTW": {
-      "shares": 130,
-      "avg_cost": 290.24,
-      "currency": "USD",
-      "brokers": {
-        "IB": {
-          "shares": 130,
-          "avg_cost": 290.24
-        }
-      }
-    },
-    "AMDL": {
-      "shares": 340,
-      "avg_cost": 67.04,
-      "currency": "USD",
-      "brokers": {
-        "IB": {
-          "shares": 340,
-          "avg_cost": 67.04
-        }
-      }
-    },
-    "SOI.PA": {
-      "shares": 57,
-      "avg_cost": 179.71,
-      "currency": "EUR",
-      "brokers": {
-        "IB": {
-          "shares": 57,
-          "avg_cost": 179.71
-        }
-      }
-    },
-    "285A.T": {
-      "shares": 200,
-      "avg_cost": 51755.0,
-      "currency": "JPY",
-      "brokers": {
-        "Futu": {
-          "shares": 100,
-          "avg_cost": 31010.0
-        },
-        "IB": {
-          "shares": 100,
-          "avg_cost": 72500.0
-        }
-      }
-    },
-    "6976.T": {
-      "shares": 100,
-      "avg_cost": 11625.0,
-      "currency": "JPY",
-      "brokers": {
-        "Futu": {
-          "shares": 100,
-          "avg_cost": 11625.0
-        }
-      }
-    },
-    "7220.T": {
-      "shares": 400,
-      "avg_cost": 3842.5,
-      "currency": "JPY",
-      "brokers": {
-        "Futu": {
-          "shares": 400,
-          "avg_cost": 3842.5
-        }
-      }
-    },
-    "5801.T": {
-      "shares": 100,
-      "avg_cost": 52130.0,
-      "currency": "JPY",
-      "brokers": {
-        "IB": {
-          "shares": 100,
-          "avg_cost": 52130.0
-        }
-      }
+    "NVDA": {
+      "shares": 5,
+      "avg_cost": 480.00
     }
   },
   "transactions": [
     {
-      "date": "2025-01-01",
-      "ticker": "LITX",
+      "date": "2024-01-15",
+      "ticker": "AAPL",
       "action": "buy",
-      "shares": 800,
-      "price": 38.943,
-      "notes": "Futu HK"
+      "shares": 10,
+      "price": 175.50,
+      "notes": "Initial purchase"
     },
     {
-      "date": "2025-01-01",
-      "ticker": "MULL",
+      "date": "2024-02-01",
+      "ticker": "NVDA",
       "action": "buy",
-      "shares": 40,
-      "price": 539.7,
-      "notes": "Futu HK"
-    },
-    {
-      "date": "2025-01-01",
-      "ticker": "MVLL",
-      "action": "buy",
-      "shares": 90,
-      "price": 147.828,
-      "notes": "Futu HK"
-    },
-    {
-      "date": "2025-01-01",
-      "ticker": "285A.T",
-      "action": "buy",
-      "shares": 100,
-      "price": 31010.0,
-      "notes": "Futu HK"
-    },
-    {
-      "date": "2025-01-01",
-      "ticker": "6976.T",
-      "action": "buy",
-      "shares": 100,
-      "price": 11625.0,
-      "notes": "Futu HK"
-    },
-    {
-      "date": "2025-01-01",
-      "ticker": "7220.T",
-      "action": "buy",
-      "shares": 400,
-      "price": 3842.5,
-      "notes": "Futu HK"
-    },
-    {
-      "date": "2025-01-01",
-      "ticker": "MVLL",
-      "action": "buy",
-      "shares": 400,
-      "price": 101.79,
-      "notes": "IB"
-    },
-    {
-      "date": "2025-01-01",
-      "ticker": "INTW",
-      "action": "buy",
-      "shares": 130,
-      "price": 290.24,
-      "notes": "IB"
-    },
-    {
-      "date": "2025-01-01",
-      "ticker": "AMDL",
-      "action": "buy",
-      "shares": 340,
-      "price": 67.04,
-      "notes": "IB"
-    },
-    {
-      "date": "2025-01-01",
-      "ticker": "SOI.PA",
-      "action": "buy",
-      "shares": 57,
-      "price": 179.71,
-      "notes": "IB Euronext Paris"
-    },
-    {
-      "date": "2025-01-01",
-      "ticker": "285A.T",
-      "action": "buy",
-      "shares": 100,
-      "price": 72500.0,
-      "notes": "IB"
-    },
-    {
-      "date": "2025-01-01",
-      "ticker": "5801.T",
-      "action": "buy",
-      "shares": 100,
-      "price": 52130.0,
-      "notes": "IB"
+      "shares": 5,
+      "price": 480.00,
+      "notes": "Initial purchase"
     }
   ],
-  "last_updated": "2026-06-01T19:27:35.074156+00:00"
+  "last_updated": "2024-02-01T00:00:00Z"
 }
