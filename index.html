@@ -325,8 +325,9 @@ const GH_RAW  = 'https://raw.githubusercontent.com/Katelynye/my-portfolio/main/d
 const GH_API  = 'https://api.github.com/repos/Katelynye/my-portfolio/contents/data.json';
 
 let portfolioData = null;
-let prices  = {};
-let fxRates = { USD: 1, JPY: 1/150, EUR: 1.08, GBP: 1.27, HKD: 0.128 };
+let prices    = {};
+let fxRates   = { USD: 1, JPY: 1/150, EUR: 1.08, GBP: 1.27, HKD: 0.128 };
+let priceTs   = null;   // ISO timestamp of when prices were last fetched
 let chartAlloc = null, chartPnl = null;
 let refreshTimer = null;
 
@@ -334,8 +335,8 @@ let refreshTimer = null;
 function loadLocalCache() {
   try { return JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) || 'null'); } catch { return null; }
 }
-function saveLocalCache(p, fx) {
-  try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify({ prices: p, fxRates: fx, fetchedAt: Date.now() })); } catch {}
+function saveLocalCache(p, fx, ts) {
+  try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify({ prices: p, fxRates: fx, fetchedAt: ts || new Date().toISOString() })); } catch {}
 }
 
 // ── Remote cache (GitHub data.json → price_cache field) ──────
@@ -373,10 +374,12 @@ async function saveRemoteCache(newPrices, newFx) {
 }
 
 function cacheAge(ts) {
-  const mins = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins === 1) return '1 min ago';
-  return `${mins} min ago`;
+  const d = new Date(ts);
+  const mins = Math.round((Date.now() - d.getTime()) / 60000);
+  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+  if (mins < 1) return `just now (${timeStr})`;
+  if (mins === 1) return `1 min ago (${timeStr})`;
+  return `${mins} min ago (${timeStr})`;
 }
 
 // FX ticker symbols for Yahoo Finance
@@ -427,13 +430,11 @@ async function loadDashboard() {
   if (local) {
     prices  = local.prices;
     fxRates = { ...fxRates, ...local.fxRates };
+    priceTs = local.fetchedAt;
     render();
-    document.getElementById('price-note').textContent =
-      `🕐 Cached ${cacheAge(local.fetchedAt)} — refreshing…`;
   } else {
-    prices = {};
+    prices = {}; priceTs = null;
     render();
-    document.getElementById('price-note').textContent = '⏳ Loading prices…';
   }
 
   // Check remote cache; use it if newer than local
@@ -444,10 +445,9 @@ async function loadDashboard() {
     if (remoteTs > localTs) {
       prices  = remote.prices;
       fxRates = { ...fxRates, ...remote.fx_rates };
-      saveLocalCache(remote.prices, remote.fx_rates); // sync to local
+      priceTs = remote.fetched_at;
+      saveLocalCache(remote.prices, remote.fx_rates);
       render();
-      document.getElementById('price-note').textContent =
-        `🕐 Cached ${cacheAge(remote.fetched_at)} — refreshing…`;
     }
   }
 
@@ -474,12 +474,13 @@ async function loadDashboard() {
       }
       prices  = newPrices;
       fxRates = { ...fxRates, ...newFx };
+      priceTs = new Date().toISOString();
       saveLocalCache(newPrices, newFx);
-      saveRemoteCache(newPrices, newFx); // async background write to GitHub
+      saveRemoteCache(newPrices, newFx);
       render();
     }
   } catch {
-    document.getElementById('price-note').textContent = '⚠ Could not refresh — showing last cached prices';
+    // keep showing cached data, note will already show cache age
   }
 
   if (refreshTimer) clearInterval(refreshTimer);
@@ -633,11 +634,15 @@ function renderCards({ totalMktValUSD, totalPnLUSD, totalPnLPct, cashUSD, totalI
   const cashPct     = totalMktValUSD > 0 ? cashUSD / totalMktValUSD * 100 : 0;
   const investedPct = totalMktValUSD > 0 ? totalInvestedUSD / totalMktValUSD * 100 : 0;
 
+  const tsLabel = priceTs
+    ? `Prices: ${cacheAge(priceTs)}`
+    : 'Prices: estimating…';
+
   const defs = [
     {
       label: 'Total Value (USD equiv.)',
       val: USD(totalMktValUSD),
-      sub: null,
+      sub: `<span style="font-size:11px;color:var(--text-muted)">${tsLabel}</span>`,
       cls: 'blue',
     },
     {
