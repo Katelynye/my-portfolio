@@ -301,13 +301,83 @@ tr:hover td { background: var(--bg-hover); }
 /* ═══════════════════════════════════════════════════════════════
    CONFIG & STATE
 ═══════════════════════════════════════════════════════════════ */
-const STORAGE_KEY = 'pf_data_url';
-const DEFAULT_DATA_URL = 'https://raw.githubusercontent.com/Katelynye/my-portfolio/main/data.json';
+// ── Portfolio data embedded directly (no fetch needed) ──────────
+const PORTFOLIO_DATA = {
+  "name": "My Portfolio",
+  "cash": 69314.66,
+  "holdings": {
+    "LITX":   { "shares": 800, "avg_cost": 38.943,  "currency": "USD", "brokers": { "Futu": {"shares": 800, "avg_cost": 38.943} } },
+    "MULL":   { "shares": 40,  "avg_cost": 539.7,   "currency": "USD", "brokers": { "Futu": {"shares": 40,  "avg_cost": 539.7} } },
+    "MVLL":   { "shares": 490, "avg_cost": 110.25,  "currency": "USD", "brokers": { "Futu": {"shares": 90, "avg_cost": 147.828}, "IB": {"shares": 400, "avg_cost": 101.79} } },
+    "INTW":   { "shares": 130, "avg_cost": 290.24,  "currency": "USD", "brokers": { "IB": {"shares": 130, "avg_cost": 290.24} } },
+    "AMDL":   { "shares": 340, "avg_cost": 67.04,   "currency": "USD", "brokers": { "IB": {"shares": 340, "avg_cost": 67.04} } },
+    "SOI.PA": { "shares": 57,  "avg_cost": 179.71,  "currency": "EUR", "brokers": { "IB": {"shares": 57, "avg_cost": 179.71} } },
+    "285A.T": { "shares": 200, "avg_cost": 51755.0,  "currency": "JPY", "brokers": { "Futu": {"shares": 100, "avg_cost": 31010.0}, "IB": {"shares": 100, "avg_cost": 72500.0} } },
+    "6976.T": { "shares": 100, "avg_cost": 11625.0,  "currency": "JPY", "brokers": { "Futu": {"shares": 100, "avg_cost": 11625.0} } },
+    "7220.T": { "shares": 400, "avg_cost": 3842.5,   "currency": "JPY", "brokers": { "Futu": {"shares": 400, "avg_cost": 3842.5} } },
+    "5801.T": { "shares": 100, "avg_cost": 52130.0,  "currency": "JPY", "brokers": { "IB": {"shares": 100, "avg_cost": 52130.0} } }
+  },
+  "last_updated": "2026-06-01T19:10:29.754151+00:00"
+};
+
+const PRICE_CACHE_KEY = 'pf_price_cache';
+const GH_RAW  = 'https://raw.githubusercontent.com/Katelynye/my-portfolio/main/data.json';
+const GH_API  = 'https://api.github.com/repos/Katelynye/my-portfolio/contents/data.json';
+
 let portfolioData = null;
-let prices  = {};   // ticker → { price, change, changePct }
-let fxRates = { USD: 1, JPY: 1/150, EUR: 1.08, GBP: 1.27, HKD: 0.128 }; // fallback rates
+let prices  = {};
+let fxRates = { USD: 1, JPY: 1/150, EUR: 1.08, GBP: 1.27, HKD: 0.128 };
 let chartAlloc = null, chartPnl = null;
 let refreshTimer = null;
+
+// ── Local cache (same browser) ───────────────────────────────
+function loadLocalCache() {
+  try { return JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) || 'null'); } catch { return null; }
+}
+function saveLocalCache(p, fx) {
+  try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify({ prices: p, fxRates: fx, fetchedAt: Date.now() })); } catch {}
+}
+
+// ── Remote cache (GitHub data.json → price_cache field) ──────
+async function loadRemoteCache() {
+  try {
+    const res = await fetch(GH_RAW + '?_=' + Date.now(), { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const d = await res.json();
+    return d.price_cache || null; // { prices, fx_rates, fetched_at }
+  } catch { return null; }
+}
+
+async function saveRemoteCache(newPrices, newFx) {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('pf_admin_cfg') || '{}');
+    const token = cfg.token;
+    if (!token) return; // no token stored — skip
+
+    const hdrs = {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    };
+    const fileRes = await fetch(GH_API, { headers: hdrs });
+    if (!fileRes.ok) return;
+    const fileData = await fileRes.json();
+    const current = JSON.parse(atob(fileData.content.replace(/\n/g, '')));
+    current.price_cache = { fetched_at: new Date().toISOString(), prices: newPrices, fx_rates: newFx };
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(current, null, 2))));
+    await fetch(GH_API, {
+      method: 'PUT', headers: hdrs,
+      body: JSON.stringify({ message: 'Auto-update price cache', content: encoded, sha: fileData.sha, branch: 'main' })
+    });
+  } catch { /* fail silently */ }
+}
+
+function cacheAge(ts) {
+  const mins = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins === 1) return '1 min ago';
+  return `${mins} min ago`;
+}
 
 // FX ticker symbols for Yahoo Finance
 const FX_TICKERS = { JPY: 'USDJPY=X', EUR: 'EURUSD=X', GBP: 'GBPUSD=X', HKD: 'HKDUSD=X' };
@@ -316,10 +386,8 @@ const FX_TICKERS = { JPY: 'USDJPY=X', EUR: 'EURUSD=X', GBP: 'GBPUSD=X', HKD: 'HK
    BOOT
 ═══════════════════════════════════════════════════════════════ */
 function init() {
-  // Always load from the hardcoded URL — ignore any stale localStorage
-  localStorage.removeItem(STORAGE_KEY);
   show('dashboard');
-  loadDashboard(DEFAULT_DATA_URL);
+  loadDashboard();
 }
 
 function show(id) {
@@ -342,20 +410,50 @@ function resetConfig() {
   show('setup-screen');
 }
 
-function refresh() { const u = localStorage.getItem(STORAGE_KEY) || DEFAULT_DATA_URL; loadDashboard(u); }
+function refresh() { loadDashboard(); }
 
 /* ═══════════════════════════════════════════════════════════════
    DATA LOAD
 ═══════════════════════════════════════════════════════════════ */
-async function loadDashboard(url) {
-  try {
-    const res = await fetch(url + '?_=' + Date.now());
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    portfolioData = await res.json();
-    document.getElementById('portfolio-name').textContent = portfolioData.name || 'Portfolio';
+async function loadDashboard() {
+  portfolioData = PORTFOLIO_DATA;
+  document.getElementById('portfolio-name').textContent = portfolioData.name || 'Portfolio';
 
+  // Phase 1: show best available cached prices instantly
+  // Fetch local cache immediately; fetch remote cache in parallel
+  const local = loadLocalCache();
+  const remotePromise = loadRemoteCache();
+
+  if (local) {
+    prices  = local.prices;
+    fxRates = { ...fxRates, ...local.fxRates };
+    render();
+    document.getElementById('price-note').textContent =
+      `🕐 Cached ${cacheAge(local.fetchedAt)} — refreshing…`;
+  } else {
+    prices = {};
+    render();
+    document.getElementById('price-note').textContent = '⏳ Loading prices…';
+  }
+
+  // Check remote cache; use it if newer than local
+  const remote = await remotePromise;
+  if (remote) {
+    const remoteTs = new Date(remote.fetched_at).getTime();
+    const localTs  = local ? new Date(local.fetchedAt).getTime() : 0;
+    if (remoteTs > localTs) {
+      prices  = remote.prices;
+      fxRates = { ...fxRates, ...remote.fx_rates };
+      saveLocalCache(remote.prices, remote.fx_rates); // sync to local
+      render();
+      document.getElementById('price-note').textContent =
+        `🕐 Cached ${cacheAge(remote.fetched_at)} — refreshing…`;
+    }
+  }
+
+  // Phase 2: fetch fresh prices from Yahoo Finance
+  try {
     const tickers = Object.keys(portfolioData.holdings || {});
-    // Detect which FX pairs we need based on currencies used
     const currencies = [...new Set(Object.values(portfolioData.holdings || {})
       .map(p => p.currency || 'USD').filter(c => c !== 'USD'))];
     const fxNeeded = currencies.map(c => FX_TICKERS[c]).filter(Boolean);
@@ -363,33 +461,29 @@ async function loadDashboard(url) {
 
     if (allSymbols.length > 0) {
       const raw = await fetchPrices(allSymbols);
-      // Separate FX rates from stock prices
-      prices = {};
+      const newPrices = {}, newFx = {};
       for (const [sym, data] of Object.entries(raw)) {
         const fxEntry = Object.entries(FX_TICKERS).find(([, fx]) => fx === sym);
         if (fxEntry) {
           const [currency] = fxEntry;
-          // USDJPY=X gives how many JPY per 1 USD → to convert JPY to USD: 1/rate
-          // EURUSD=X gives how many USD per 1 EUR → to convert EUR to USD: rate
-          if (currency === 'JPY' || currency === 'HKD') fxRates[currency] = 1 / data.price;
-          else fxRates[currency] = data.price; // EUR, GBP already in USD terms
+          if (currency === 'JPY' || currency === 'HKD') newFx[currency] = 1 / data.price;
+          else newFx[currency] = data.price;
         } else {
-          prices[sym] = data;
+          newPrices[sym] = data;
         }
       }
+      prices  = newPrices;
+      fxRates = { ...fxRates, ...newFx };
+      saveLocalCache(newPrices, newFx);
+      saveRemoteCache(newPrices, newFx); // async background write to GitHub
+      render();
     }
-
-    render();
-    if (refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(() => loadDashboard(url), 60000);
-  } catch (e) {
-    document.getElementById('holdings-area').innerHTML =
-      `<div class="center-box" style="color:var(--red)">
-        ⚠ Failed to load: ${e.message}
-        <button class="btn btn-ghost" onclick="refresh()">Retry</button>
-        <button class="btn btn-ghost" onclick="resetConfig()">Change URL</button>
-      </div>`;
+  } catch {
+    document.getElementById('price-note').textContent = '⚠ Could not refresh — showing last cached prices';
   }
+
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => loadDashboard(), 60000);
 }
 
 /* ═══════════════════════════════════════════════════════════════
