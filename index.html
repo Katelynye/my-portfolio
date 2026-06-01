@@ -175,6 +175,15 @@ tr:hover td { background: var(--bg-hover); }
   font-family: var(--font-mono);
 }
 .day-chg { font-size: 11px; display: block; margin-top: 2px; }
+.broker-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+.broker-tag {
+  font-size: 10px; font-family: var(--font-mono);
+  padding: 1px 6px; border-radius: 3px;
+  border: 1px solid var(--border); color: var(--text-muted);
+  white-space: nowrap;
+}
+.broker-tag.futu { border-color: #f97316; color: #f97316; }
+.broker-tag.ib   { border-color: #6366f1; color: #a5b4fc; }
 
 /* ── Loading / Error ────────────────────────────────────────── */
 .center-box {
@@ -452,6 +461,7 @@ function render() {
   for (const [ticker, pos] of Object.entries(holdings)) {
     const shares    = pos.shares   ?? 0;
     const avgCost   = pos.avg_cost ?? 0;
+    const brokers   = pos.brokers  ?? null;
     const pd        = prices[ticker];
     const curPrice  = pd?.price ?? avgCost;
 
@@ -464,7 +474,7 @@ function render() {
     totalValue    += mktVal;
     totalPnL      += pnl;
 
-    rows.push({ ticker, shares, avgCost, curPrice, invested, mktVal, pnl, pnlPct, pd });
+    rows.push({ ticker, shares, avgCost, brokers, curPrice, invested, mktVal, pnl, pnlPct, pd });
   }
 
   const totalPnLPct = totalInvested > 0 ? (totalPnL / totalInvested * 100) : 0;
@@ -550,7 +560,15 @@ function renderTable(rows) {
       <tbody>
         ${rows.map(r => `
           <tr>
-            <td><span class="ticker-badge">${r.ticker}</span></td>
+            <td>
+              <span class="ticker-badge">${r.ticker}</span>
+              ${r.brokers ? `<div class="broker-tags">${
+                Object.entries(r.brokers).map(([name, b]) => {
+                  const cls = name.toLowerCase() === 'futu' ? 'futu' : name.toLowerCase() === 'ib' ? 'ib' : '';
+                  return `<span class="broker-tag ${cls}">${name}&nbsp;${NUM(b.shares, b.shares%1===0?0:2)}</span>`;
+                }).join('')
+              }</div>` : ''}
+            </td>
             <td>${NUM(r.shares, r.shares % 1 === 0 ? 0 : 4)}</td>
             <td>${USD(r.avgCost)}</td>
             <td>${r.pd ? USD(r.curPrice) : `<span style="color:var(--text-muted)">${USD(r.avgCost)} (est)</span>`}</td>
