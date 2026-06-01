@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Admin</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --bg-card: #161b22;
+  --bg-hover: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --blue: #58a6ff;
+  --green: #3fb950;
+  --red: #f85149;
+  --orange: #ffa657;
+  --purple: #d2a8ff;
+  --font-mono: 'SF Mono','Fira Code','Cascadia Code',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;min-height:100vh;}
+
+/* ── Header ─────────────────────────────────────────── */
+.header{background:var(--bg-card);border-bottom:1px solid var(--border);padding:13px 26px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100;}
+.header h1{font-size:16px;font-weight:600;}
+.header-meta{font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:12px;}
+
+/* ── Main layout ─────────────────────────────────────── */
+.main{max-width:900px;margin:0 auto;padding:28px 24px;}
+
+/* ── Steps nav ───────────────────────────────────────── */
+.steps{display:flex;gap:6px;margin-bottom:28px;flex-wrap:wrap;}
+.step-btn{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:20px;
+  padding:6px 16px;font-size:13px;color:var(--text-muted);cursor:pointer;transition:all 0.15s;
+}
+.step-btn.active{background:var(--blue);color:#0d1117;border-color:var(--blue);font-weight:600;}
+.step-btn:hover:not(.active){color:var(--text);border-color:var(--text-muted);}
+
+/* ── Cards / Sections ────────────────────────────────── */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:24px;margin-bottom:20px;}
+.card-title{font-size:14px;font-weight:600;margin-bottom:18px;color:var(--text);display:flex;align-items:center;gap:8px;}
+.card-title .badge{background:var(--blue);color:#0d1117;border-radius:12px;padding:2px 9px;font-size:11px;}
+
+/* ── Form elements ───────────────────────────────────── */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.form-row.triple{grid-template-columns:1fr 1fr 1fr;}
+.form-row.single{grid-template-columns:1fr;}
+@media(max-width:600px){.form-row,.form-row.triple{grid-template-columns:1fr;}}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-group label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;}
+input[type=text],input[type=url],input[type=password],input[type=number],select,textarea{
+  width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:9px 13px;color:var(--text);font-size:13px;outline:none;transition:border-color 0.15s;
+  font-family:inherit;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);}
+textarea{resize:vertical;min-height:80px;}
+select option{background:var(--bg-card);}
+
+/* ── Buttons ─────────────────────────────────────────── */
+.btn{
+  background:var(--blue);color:#0d1117;border:none;border-radius:7px;
+  padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;transition:opacity 0.2s;white-space:nowrap;
+}
+.btn:hover{opacity:0.85;}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.btn-green{background:var(--green);}
+.btn-red{background:var(--red);color:#fff;}
+.btn-ghost{background:var(--bg-hover);color:var(--text);border:1px solid var(--border);}
+.btn-ghost:hover{opacity:1;border-color:var(--text-muted);}
+.btn-sm{padding:6px 14px;font-size:12px;}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;}
+
+/* ── Holdings list ───────────────────────────────────── */
+.holding-row{
+  display:flex;align-items:center;gap:14px;
+  padding:12px 16px;border:1px solid var(--border);border-radius:8px;
+  margin-bottom:8px;background:var(--bg);
+}
+.holding-ticker{font-weight:700;font-size:14px;color:var(--blue);font-family:var(--font-mono);min-width:60px;}
+.holding-info{flex:1;font-size:13px;color:var(--text-muted);font-family:var(--font-mono);}
+.holding-actions{display:flex;gap:6px;}
+
+/* ── Image upload area ───────────────────────────────── */
+.upload-area{
+  border:2px dashed var(--border);border-radius:10px;
+  padding:32px;text-align:center;cursor:pointer;
+  transition:all 0.2s;color:var(--text-muted);
+}
+.upload-area:hover,.upload-area.drag-over{border-color:var(--blue);color:var(--text);background:var(--bg-hover);}
+.upload-area input{display:none;}
+.preview-wrap{position:relative;display:inline-block;margin-top:14px;}
+.preview-wrap img{max-width:100%;max-height:300px;border-radius:8px;border:1px solid var(--border);}
+.preview-wrap .remove-btn{
+  position:absolute;top:-8px;right:-8px;
+  background:var(--red);color:#fff;border:none;border-radius:50%;
+  width:24px;height:24px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;
+}
+
+/* ── Parsed result box ───────────────────────────────── */
+.parse-result{
+  background:var(--bg);border:1px solid var(--green);border-radius:8px;
+  padding:16px;margin-top:14px;font-size:13px;
+}
+.parse-result h4{color:var(--green);margin-bottom:10px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;}
+
+/* ── Alert / Toast ───────────────────────────────────── */
+.alert{
+  padding:12px 16px;border-radius:8px;margin-bottom:16px;
+  font-size:13px;display:flex;align-items:center;gap:10px;
+}
+.alert-success{background:#3fb95022;border:1px solid var(--green);color:var(--green);}
+.alert-error{background:#f8514922;border:1px solid var(--red);color:var(--red);}
+.alert-info{background:#58a6ff22;border:1px solid var(--blue);color:var(--blue);}
+.alert-warn{background:#ffa65722;border:1px solid var(--orange);color:var(--orange);}
+
+/* ── Config status ───────────────────────────────────── */
+.config-tag{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--bg-hover);border:1px solid var(--border);
+  border-radius:6px;padding:4px 10px;font-size:12px;color:var(--text-muted);
+}
+.config-tag.ok{border-color:var(--green);color:var(--green);}
+.config-tag.warn{border-color:var(--orange);color:var(--orange);}
+
+/* ── Divider ─────────────────────────────────────────── */
+hr{border:none;border-top:1px solid var(--border);margin:20px 0;}
+
+/* ── Badge ───────────────────────────────────────────── */
+.tag{background:var(--bg-hover);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:11px;font-family:var(--font-mono);}
+.tag-buy{color:var(--green);}
+.tag-sell{color:var(--red);}
+
+/* ── Spinner ─────────────────────────────────────────── */
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 0.6s linear infinite;display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Transaction history ─────────────────────────────── */
+.tx-row{display:grid;grid-template-columns:90px 70px 80px 90px 100px 1fr auto;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;font-family:var(--font-mono);}
+.tx-row:last-child{border-bottom:none;}
+.tx-header{background:var(--bg);color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;}
+@media(max-width:700px){.tx-row{grid-template-columns:70px 60px 70px 80px 1fr auto;}.tx-row .tx-notes{display:none;}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span>⚙️</span>
+    <h1>Portfolio Admin</h1>
+  </div>
+  <div class="header-meta">
+    <span id="config-status-tag" class="config-tag warn">⚠ Not configured</span>
+    <a href="index.html" style="color:var(--blue);font-size:12px;text-decoration:none;">← View Dashboard</a>
+  </div>
+</div>
+
+<div class="main">
+  <div id="alert-area"></div>
+
+  <!-- Step navigation -->
+  <div class="steps">
+    <button class="step-btn active" onclick="showSection('s-config')">⚙ Config</button>
+    <button class="step-btn" onclick="showSection('s-holdings')">📋 Holdings</button>
+    <button class="step-btn" onclick="showSection('s-trade')">➕ Add Trade</button>
+    <button class="step-btn" onclick="showSection('s-upload')">📸 Upload Screenshot</button>
+    <button class="step-btn" onclick="showSection('s-history')">🕐 History</button>
+    <button class="step-btn" onclick="showSection('s-cash')">💵 Cash</button>
+  </div>
+
+  <!-- ── SECTION: Config ───────────────────────────────────────── -->
+  <div id="s-config">
+    <div class="card">
+      <div class="card-title">⚙ GitHub Configuration <span class="badge">Required</span></div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px;line-height:1.6;">
+        Your portfolio data is stored in a <code>data.json</code> file in a GitHub repository.
+        This admin panel reads and writes that file via the GitHub API using a Personal Access Token.
+      </p>
+      <div class="form-row triple">
+        <div class="form-group">
+          <label>GitHub Username</label>
+          <input type="text" id="gh-owner" placeholder="yourusername">
+        </div>
+        <div class="form-group">
+          <label>Repository Name</label>
+          <input type="text" id="gh-repo" placeholder="my-portfolio">
+        </div>
+        <div class="form-group">
+          <label>Branch</label>
+          <input type="text" id="gh-branch" placeholder="main" value="main">
+        </div>
+      </div>
+      <div class="form-row single">
+        <div class="form-group">
+          <label>File Path in Repo</label>
+          <input type="text" id="gh-filepath" placeholder="data.json" value="data.json">
+        </div>
+      </div>
+      <div class="form-row single">
+        <div class="form-group">
+          <label>Personal Access Token (PAT) — needs <code>repo</code> scope</label>
+          <input type="password" id="gh-pat" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+        </div>
+      </div>
+      <hr>
+      <div class="card-title" style="margin-top:0">🤖 AI Screenshot Parsing <span class="badge" style="background:var(--purple);color:#0d1117;">Optional</span></div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.6;">
+        Provide your Anthropic API key to enable automatic trade extraction from brokerage screenshots.
+        Your key is only stored locally in your browser and never sent anywhere except Anthropic.
+      </p>
+      <div class="form-row single">
+        <div class="form-group">
+          <label>Anthropic API Key</label>
+          <input type="password" id="anthropic-key" placeholder="sk-ant-api03-xxxx" autocomplete="off">
+        </div>
+      </div>
+      <hr>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="saveConfig()">💾 Save Config</button>
+        <button class="btn btn-ghost" onclick="clearConfig()">🗑 Clear Saved Config</button>
+      </div>
+    </div>
+
+    <div class="card" style="background:var(--bg-hover)">
+      <div class="card-title" style="color:var(--text-muted)">📖 How to set up GitHub</div>
+      <ol style="font-size:13px;color:var(--text-muted);line-height:2;padding-left:18px;">
+        <li>Create a new <strong style="color:var(--text)">public GitHub repository</strong> (e.g. <code>my-portfolio</code>)</li>
+        <li>Upload the <code>data.json</code> file to the repo root</li>
+        <li>Go to <strong>Settings → Pages</strong> and enable GitHub Pages from the main branch</li>
+        <li>Go to <strong>Settings → Developer settings → Personal access tokens → Tokens (classic)</strong></li>
+        <li>Generate a new token with <code>repo</code> scope and paste it above</li>
+        <li>Your public dashboard URL will be: <code>https://USERNAME.github.io/REPO/</code></li>
+        <li>Your data URL will be: <code>https://raw.githubusercontent.com/USERNAME/REPO/main/data.json</code></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ── SECTION: Holdings ─────────────────────────────────────── -->
+  <div id="s-holdings" style="display:none">
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between">
+        <span>📋 Current Holdings</span>
+        <button class="btn btn-ghost btn-sm" onclick="loadFromGitHub()">↺ Reload from GitHub</button>
+      </div>
+      <div id="holdings-list">
+        <p style="color:var(--text-muted);font-size:13px;">Configure GitHub settings first, then click "Reload from GitHub".</p>
+      </div>
+      <hr>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="saveToGitHub()">🚀 Save to GitHub</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION: Add Trade ────────────────────────────────────── -->
+  <div id="s-trade" style="display:none">
+    <div class="card">
+      <div class="card-title">➕ Add Trade</div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">
+        Recording a trade automatically recalculates your average cost and share count.
+      </p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Ticker Symbol</label>
+          <input type="text" id="trade-ticker" placeholder="AAPL" style="text-transform:uppercase">
+        </div>
+        <div class="form-group">
+          <label>Action</label>
+          <select id="trade-action">
+            <option value="buy">Buy</option>
+            <option value="sell">Sell</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row triple">
+        <div class="form-group">
+          <label>Shares</label>
+          <input type="number" id="trade-shares" placeholder="100" min="0" step="any">
+        </div>
+        <div class="form-group">
+          <label>Price per Share</label>
+          <input type="number" id="trade-price" placeholder="150.00" min="0" step="any">
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="text" id="trade-date" placeholder="2024-01-15">
+        </div>
+      </div>
+      <div class="form-row single">
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <input type="text" id="trade-notes" placeholder="e.g. Initial purchase">
+        </div>
+      </div>
+
+      <div id="trade-preview" style="display:none" class="parse-result">
+        <h4>📊 Trade Preview</h4>
+        <div id="trade-preview-content"></div>
+      </div>
+
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn btn-green" onclick="addTrade()">✓ Add Trade</button>
+        <button class="btn btn-ghost" onclick="clearTradeForm()">Clear</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💾 Save Changes</div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">
+        After adding all your trades, push everything to GitHub to update the live dashboard.
+      </p>
+      <button class="btn btn-green" onclick="saveToGitHub()">🚀 Save to GitHub</button>
+    </div>
+  </div>
+
+  <!-- ── SECTION: Upload Screenshot ───────────────────────────── -->
+  <div id="s-upload" style="display:none">
+    <div class="card">
+      <div class="card-title">📸 Upload Trade Screenshot <span class="badge" style="background:var(--purple);color:#0d1117;">AI-powered</span></div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px;line-height:1.6;">
+        Upload a screenshot of your brokerage trade confirmation. Claude will automatically extract
+        the ticker, shares, price, and action. You can review before saving.
+        <br><strong style="color:var(--orange)">Requires Anthropic API key in Config.</strong>
+      </p>
+
+      <!-- Drop zone -->
+      <div class="upload-area" id="drop-zone"
+        ondragover="event.preventDefault();this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')"
+        ondrop="handleDrop(event)">
+        <input type="file" id="img-input" accept="image/*" onchange="handleFileSelect(event)">
+        <div style="font-size:36px;margin-bottom:10px">📂</div>
+        <div style="font-size:14px;margin-bottom:6px">Click to choose or drag & drop an image</div>
+        <div style="font-size:12px;color:var(--text-muted)">PNG, JPG, WEBP supported</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="document.getElementById('img-input').click();event.stopPropagation()">Choose File</button>
+      </div>
+
+      <div id="image-preview" style="display:none;text-align:center;margin-top:16px">
+        <div class="preview-wrap">
+          <img id="preview-img" src="" alt="Preview">
+          <button class="remove-btn" onclick="clearImage()">×</button>
+        </div>
+        <div class="btn-row" style="justify-content:center;margin-top:14px">
+          <button class="btn" id="parse-btn" onclick="parseImage()">
+            <span>🤖 Parse with Claude</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Parsed result -->
+      <div id="parsed-result" style="display:none" class="parse-result">
+        <h4>✅ Extracted Trade Data</h4>
+        <div id="parsed-content"></div>
+        <hr style="margin:14px 0;border-color:var(--border)">
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Review and edit below, then click "Add Trade":</p>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Ticker</label>
+            <input type="text" id="p-ticker" style="text-transform:uppercase">
+          </div>
+          <div class="form-group">
+            <label>Action</label>
+            <select id="p-action">
+              <option value="buy">Buy</option>
+              <option value="sell">Sell</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row triple">
+          <div class="form-group">
+            <label>Shares</label>
+            <input type="number" id="p-shares" min="0" step="any">
+          </div>
+          <div class="form-group">
+            <label>Price per Share</label>
+            <input type="number" id="p-price" min="0" step="any">
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="text" id="p-date">
+          </div>
+        </div>
+        <div class="form-row single">
+          <div class="form-group">
+            <label>Notes</label>
+            <input type="text" id="p-notes" value="From screenshot">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-green" onclick="addTradeFromParsed()">✓ Add This Trade</button>
+          <button class="btn btn-ghost" onclick="clearImage()">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💾 Save Changes</div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">
+        After adding all trades from screenshots, push to GitHub.
+      </p>
+      <button class="btn btn-green" onclick="saveToGitHub()">🚀 Save to GitHub</button>
+    </div>
+  </div>
+
+  <!-- ── SECTION: History ──────────────────────────────────────── -->
+  <div id="s-history" style="display:none">
+    <div class="card">
+      <div class="card-title">🕐 Transaction History</div>
+      <div id="history-list">
+        <p style="color:var(--text-muted);font-size:13px;">No transactions recorded yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION: Cash ─────────────────────────────────────────── -->
+  <div id="s-cash" style="display:none">
+    <div class="card">
+      <div class="card-title">💵 Cash Balance</div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">
+        Update your available cash balance (uninvested funds).
+      </p>
+      <div class="form-row" style="max-width:400px">
+        <div class="form-group">
+          <label>Cash Amount (USD)</label>
+          <input type="number" id="cash-input" placeholder="10000.00" min="0" step="0.01">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="updateCash()">✓ Set Cash Balance</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📝 Portfolio Name</div>
+      <div class="form-row single" style="max-width:400px">
+        <div class="form-group">
+          <label>Portfolio Name</label>
+          <input type="text" id="name-input" placeholder="My Portfolio">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="updateName()">✓ Update Name</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">💾 Save Changes</div>
+      <button class="btn btn-green" onclick="saveToGitHub()">🚀 Save to GitHub</button>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════════ */
+let ghConfig = {};
+let portfolioData = {
+  name: 'My Portfolio',
+  cash: 0,
+  holdings: {},
+  transactions: [],
+  last_updated: ''
+};
+let currentFileSha = null;
+let currentImageBase64 = null;
+let currentImageMime = null;
+
+/* ═══════════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════════ */
+window.onload = function() {
+  loadConfig();
+  setDefaultDate();
+};
+
+function setDefaultDate() {
+  const d = new Date();
+  const str = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  document.getElementById('trade-date').value = str;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════════════════════════ */
+function showSection(id) {
+  ['s-config','s-holdings','s-trade','s-upload','s-history','s-cash'].forEach(s => {
+    document.getElementById(s).style.display = s === id ? 'block' : 'none';
+  });
+  document.querySelectorAll('.step-btn').forEach((btn, i) => {
+    const ids = ['s-config','s-holdings','s-trade','s-upload','s-history','s-cash'];
+    btn.classList.toggle('active', ids[i] === id);
+  });
+
+  if (id === 's-holdings') renderHoldingsList();
+  if (id === 's-history') renderHistory();
+  if (id === 's-cash') {
+    document.getElementById('cash-input').value = portfolioData.cash ?? '';
+    document.getElementById('name-input').value = portfolioData.name ?? '';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════════════════════════ */
+function loadConfig() {
+  const cfg = JSON.parse(localStorage.getItem('pf_admin_cfg') || '{}');
+  if (cfg.owner) document.getElementById('gh-owner').value = cfg.owner;
+  if (cfg.repo)  document.getElementById('gh-repo').value  = cfg.repo;
+  if (cfg.branch)document.getElementById('gh-branch').value= cfg.branch;
+  if (cfg.path)  document.getElementById('gh-filepath').value = cfg.path;
+  if (cfg.pat)   document.getElementById('gh-pat').value   = cfg.pat;
+  if (cfg.anthropicKey) document.getElementById('anthropic-key').value = cfg.anthropicKey;
+  ghConfig = cfg;
+  updateConfigStatus();
+}
+
+function saveConfig() {
+  const cfg = {
+    owner:        document.getElementById('gh-owner').value.trim(),
+    repo:         document.getElementById('gh-repo').value.trim(),
+    branch:       document.getElementById('gh-branch').value.trim() || 'main',
+    path:         document.getElementById('gh-filepath').value.trim() || 'data.json',
+    pat:          document.getElementById('gh-pat').value.trim(),
+    anthropicKey: document.getElementById('anthropic-key').value.trim(),
+  };
+  if (!cfg.owner || !cfg.repo || !cfg.pat) {
+    showAlert('error', 'Please fill in GitHub username, repository name, and PAT.');
+    return;
+  }
+  localStorage.setItem('pf_admin_cfg', JSON.stringify(cfg));
+  ghConfig = cfg;
+  updateConfigStatus();
+  showAlert('success', '✓ Config saved. Loading portfolio data from GitHub…');
+  loadFromGitHub();
+}
+
+function clearConfig() {
+  if (!confirm('Clear all saved config?')) return;
+  localStorage.removeItem('pf_admin_cfg');
+  ghConfig = {};
+  updateConfigStatus();
+}
+
+function updateConfigStatus() {
+  const tag = document.getElementById('config-status-tag');
+  if (ghConfig.owner && ghConfig.repo && ghConfig.pat) {
+    tag.className = 'config-tag ok';
+    tag.textContent = `✓ ${ghConfig.owner}/${ghConfig.repo}`;
+  } else {
+    tag.className = 'config-tag warn';
+    tag.textContent = '⚠ Not configured';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GITHUB API
+═══════════════════════════════════════════════════════════════ */
+async function loadFromGitHub() {
+  if (!ghConfig.owner || !ghConfig.repo || !ghConfig.pat) {
+    showAlert('warn', 'Configure GitHub settings first.');
+    showSection('s-config');
+    return;
+  }
+
+  showAlert('info', '⏳ Loading from GitHub…');
+
+  const url = `https://api.github.com/repos/${ghConfig.owner}/${ghConfig.repo}/contents/${ghConfig.path}?ref=${ghConfig.branch}`;
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `token ${ghConfig.pat}`, Accept: 'application/vnd.github.v3+json' }
+    });
+    if (!res.ok) {
+      if (res.status === 404) {
+        showAlert('warn', '⚠ data.json not found in repo. You may need to create it first.');
+        return;
+      }
+      throw new Error(`GitHub API: ${res.status}`);
+    }
+    const file = await res.json();
+    currentFileSha = file.sha;
+    const content = atob(file.content.replace(/\n/g,''));
+    portfolioData = JSON.parse(content);
+    portfolioData.holdings    = portfolioData.holdings    || {};
+    portfolioData.transactions = portfolioData.transactions || [];
+
+    showAlert('success', `✓ Loaded portfolio: ${Object.keys(portfolioData.holdings).length} holdings, $${(portfolioData.cash||0).toFixed(2)} cash`);
+    renderHoldingsList();
+    renderHistory();
+
+  } catch(e) {
+    showAlert('error', `Failed to load: ${e.message}`);
+  }
+}
+
+async function saveToGitHub() {
+  if (!ghConfig.owner || !ghConfig.repo || !ghConfig.pat) {
+    showAlert('warn', 'Configure GitHub settings first.');
+    return;
+  }
+
+  portfolioData.last_updated = new Date().toISOString();
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(portfolioData, null, 2))));
+
+  const url = `https://api.github.com/repos/${ghConfig.owner}/${ghConfig.repo}/contents/${ghConfig.path}`;
+  const body = {
+    message: `Update portfolio ${new Date().toLocaleString()}`,
+    content: content,
+    branch: ghConfig.branch,
+  };
+  if (currentFileSha) body.sha = currentFileSha;
+
+  showAlert('info', '⏳ Saving to GitHub…');
+
+  try {
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${ghConfig.pat}`,
+        Accept: 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(()=>({}));
+      throw new Error(errData.message || `HTTP ${res.status}`);
+    }
+    const result = await res.json();
+    currentFileSha = result.content.sha;
+    showAlert('success', '✓ Saved to GitHub! Dashboard will update within 1-2 minutes.');
+  } catch(e) {
+    showAlert('error', `Save failed: ${e.message}`);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HOLDINGS MANAGEMENT
+═══════════════════════════════════════════════════════════════ */
+function renderHoldingsList() {
+  const h = portfolioData.holdings || {};
+  const keys = Object.keys(h);
+  const el = document.getElementById('holdings-list');
+
+  if (!keys.length) {
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No holdings yet. Add trades to get started.</p>';
+    return;
+  }
+
+  el.innerHTML = keys.map(ticker => {
+    const pos = h[ticker];
+    return `
+      <div class="holding-row">
+        <span class="holding-ticker">${ticker}</span>
+        <span class="holding-info">
+          ${pos.shares} shares &nbsp;·&nbsp; avg cost $${(pos.avg_cost||0).toFixed(4)}
+          &nbsp;·&nbsp; basis $${((pos.shares||0) * (pos.avg_cost||0)).toFixed(2)}
+        </span>
+        <div class="holding-actions">
+          <button class="btn btn-ghost btn-sm" onclick="deleteHolding('${ticker}')">🗑 Remove</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function deleteHolding(ticker) {
+  if (!confirm(`Remove ${ticker} from holdings? This won't delete transaction history.`)) return;
+  delete portfolioData.holdings[ticker];
+  renderHoldingsList();
+  showAlert('info', `Removed ${ticker}. Click "Save to GitHub" to persist.`);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ADD TRADE
+═══════════════════════════════════════════════════════════════ */
+function addTrade() {
+  const ticker = document.getElementById('trade-ticker').value.trim().toUpperCase();
+  const action = document.getElementById('trade-action').value;
+  const shares = parseFloat(document.getElementById('trade-shares').value);
+  const price  = parseFloat(document.getElementById('trade-price').value);
+  const date   = document.getElementById('trade-date').value;
+  const notes  = document.getElementById('trade-notes').value.trim();
+
+  if (!ticker || isNaN(shares) || isNaN(price) || shares <= 0 || price <= 0) {
+    showAlert('error', 'Please fill in ticker, shares, and price.');
+    return;
+  }
+
+  applyTrade({ ticker, action, shares, price, date, notes });
+  clearTradeForm();
+  renderHoldingsList();
+  renderHistory();
+  showAlert('success', `✓ Added ${action.toUpperCase()} ${shares} ${ticker} @ $${price}. Click "Save to GitHub" to publish.`);
+}
+
+function applyTrade({ ticker, action, shares, price, date, notes }) {
+  // Record transaction
+  portfolioData.transactions = portfolioData.transactions || [];
+  portfolioData.transactions.push({ date, ticker, action, shares, price, notes });
+
+  // Update holdings
+  portfolioData.holdings = portfolioData.holdings || {};
+  const existing = portfolioData.holdings[ticker] || { shares: 0, avg_cost: 0 };
+
+  if (action === 'buy') {
+    const totalCost = (existing.shares * existing.avg_cost) + (shares * price);
+    const totalShares = existing.shares + shares;
+    portfolioData.holdings[ticker] = {
+      shares: parseFloat(totalShares.toFixed(8)),
+      avg_cost: parseFloat((totalCost / totalShares).toFixed(8)),
+    };
+  } else { // sell
+    const newShares = existing.shares - shares;
+    if (newShares <= 0.000001) {
+      delete portfolioData.holdings[ticker]; // Position closed
+    } else {
+      portfolioData.holdings[ticker] = {
+        shares: parseFloat(newShares.toFixed(8)),
+        avg_cost: existing.avg_cost, // avg cost doesn't change on sell
+      };
+    }
+  }
+}
+
+function addTradeFromParsed() {
+  const ticker = document.getElementById('p-ticker').value.trim().toUpperCase();
+  const action = document.getElementById('p-action').value;
+  const shares = parseFloat(document.getElementById('p-shares').value);
+  const price  = parseFloat(document.getElementById('p-price').value);
+  const date   = document.getElementById('p-date').value;
+  const notes  = document.getElementById('p-notes').value.trim();
+
+  if (!ticker || isNaN(shares) || isNaN(price)) {
+    showAlert('error', 'Missing required fields.');
+    return;
+  }
+
+  applyTrade({ ticker, action, shares, price, date, notes });
+  clearImage();
+  renderHoldingsList();
+  renderHistory();
+  showAlert('success', `✓ Added ${action.toUpperCase()} ${shares} ${ticker} @ $${price}. Click "Save to GitHub" to publish.`);
+}
+
+function clearTradeForm() {
+  ['trade-ticker','trade-shares','trade-price','trade-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('trade-action').value = 'buy';
+  document.getElementById('trade-preview').style.display = 'none';
+  setDefaultDate();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   IMAGE UPLOAD
+═══════════════════════════════════════════════════════════════ */
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) loadImage(file);
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadImage(file);
+}
+
+function loadImage(file) {
+  currentImageMime = file.type || 'image/jpeg';
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const b64 = e.target.result.split(',')[1];
+    currentImageBase64 = b64;
+    document.getElementById('preview-img').src = e.target.result;
+    document.getElementById('image-preview').style.display = 'block';
+    document.getElementById('parsed-result').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearImage() {
+  currentImageBase64 = null;
+  currentImageMime = null;
+  document.getElementById('preview-img').src = '';
+  document.getElementById('image-preview').style.display = 'none';
+  document.getElementById('parsed-result').style.display = 'none';
+  document.getElementById('img-input').value = '';
+}
+
+async function parseImage() {
+  const key = ghConfig.anthropicKey;
+  if (!key) {
+    showAlert('error', 'Please add your Anthropic API key in the Config section.');
+    return;
+  }
+  if (!currentImageBase64) {
+    showAlert('error', 'No image loaded.');
+    return;
+  }
+
+  const btn = document.getElementById('parse-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Parsing…';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 512,
+        system: `You are a financial trade parser. Extract trade details from brokerage screenshots or confirmations.
+Return ONLY a JSON object with these exact fields:
+{"ticker":"AAPL","action":"buy","shares":100,"price":150.00,"date":"2024-01-15","notes":""}
+Rules:
+- ticker: uppercase stock symbol (e.g. AAPL, TSLA, 700.HK)
+- action: "buy" or "sell" only
+- shares: numeric quantity of shares
+- price: price per share as a number
+- date: trade date in YYYY-MM-DD format, or today if not visible
+- notes: brief description or empty string
+If you cannot determine a value with confidence, use null for that field.
+Return ONLY the JSON, no explanation.`,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: currentImageMime, data: currentImageBase64 }
+            },
+            { type: 'text', text: 'Extract the trade details from this brokerage screenshot.' }
+          ]
+        }]
+      })
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(()=>({}));
+      throw new Error(errData.error?.message || `API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    const raw = data.content[0].text.trim();
+
+    // Extract JSON
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Could not find JSON in response');
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    // Show result
+    document.getElementById('parsed-content').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;font-size:12px;font-family:var(--font-mono)">
+        ${[
+          ['Ticker', parsed.ticker || '—'],
+          ['Action', parsed.action || '—'],
+          ['Shares', parsed.shares ?? '—'],
+          ['Price', parsed.price != null ? '$'+parsed.price : '—'],
+          ['Date', parsed.date || '—'],
+          ['Notes', parsed.notes || '—'],
+        ].map(([k,v]) => `<div><span style="color:var(--text-muted)">${k}:</span><br><strong>${v}</strong></div>`).join('')}
+      </div>
+    `;
+
+    // Pre-fill form
+    if (parsed.ticker) document.getElementById('p-ticker').value = parsed.ticker;
+    if (parsed.action) document.getElementById('p-action').value = parsed.action;
+    if (parsed.shares != null) document.getElementById('p-shares').value = parsed.shares;
+    if (parsed.price  != null) document.getElementById('p-price').value  = parsed.price;
+    if (parsed.date)  document.getElementById('p-date').value  = parsed.date;
+    if (parsed.notes) document.getElementById('p-notes').value = parsed.notes;
+
+    document.getElementById('parsed-result').style.display = 'block';
+
+  } catch(e) {
+    showAlert('error', `Parse failed: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>🤖 Parse with Claude</span>';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HISTORY
+═══════════════════════════════════════════════════════════════ */
+function renderHistory() {
+  const txs = [...(portfolioData.transactions || [])].reverse();
+  const el = document.getElementById('history-list');
+
+  if (!txs.length) {
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No transactions yet.</p>';
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="tx-row tx-header">
+      <span>Date</span><span>Ticker</span><span>Action</span>
+      <span>Shares</span><span>Price</span><span class="tx-notes">Notes</span><span></span>
+    </div>
+    ${txs.map((tx, i) => `
+      <div class="tx-row">
+        <span>${tx.date || '—'}</span>
+        <span style="color:var(--blue);font-weight:700">${tx.ticker}</span>
+        <span class="tag ${tx.action === 'buy' ? 'tag-buy' : 'tag-sell'}">${tx.action?.toUpperCase()}</span>
+        <span>${tx.shares}</span>
+        <span>$${parseFloat(tx.price).toFixed(2)}</span>
+        <span class="tx-notes" style="color:var(--text-muted)">${tx.notes || ''}</span>
+        <button class="btn btn-ghost btn-sm" onclick="deleteTx(${txs.length-1-i})" title="Delete">×</button>
+      </div>
+    `).join('')}
+  `;
+}
+
+function deleteTx(idx) {
+  if (!confirm('Delete this transaction? Holdings will NOT be recalculated automatically.')) return;
+  portfolioData.transactions.splice(idx, 1);
+  renderHistory();
+  showAlert('warn', 'Transaction deleted. Note: holdings were not recalculated. You may need to re-add trades.');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CASH / NAME
+═══════════════════════════════════════════════════════════════ */
+function updateCash() {
+  const v = parseFloat(document.getElementById('cash-input').value);
+  if (isNaN(v) || v < 0) { showAlert('error','Enter a valid cash amount.'); return; }
+  portfolioData.cash = v;
+  showAlert('success', `✓ Cash set to $${v.toFixed(2)}. Click "Save to GitHub" to publish.`);
+}
+
+function updateName() {
+  const v = document.getElementById('name-input').value.trim();
+  if (!v) { showAlert('error','Enter a portfolio name.'); return; }
+  portfolioData.name = v;
+  showAlert('success', `✓ Name updated to "${v}". Click "Save to GitHub" to publish.`);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ALERTS
+═══════════════════════════════════════════════════════════════ */
+function showAlert(type, msg) {
+  const el = document.getElementById('alert-area');
+  el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  if (type !== 'error') setTimeout(() => { el.innerHTML = ''; }, 6000);
+}
+</script>
+</body>
+</html>
