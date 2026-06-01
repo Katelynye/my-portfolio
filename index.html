@@ -299,13 +299,17 @@ tr:hover td { background: var(--bg-hover); }
 
 <script>
 /* ═══════════════════════════════════════════════════════════════
-   CONFIG
+   CONFIG & STATE
 ═══════════════════════════════════════════════════════════════ */
 const STORAGE_KEY = 'pf_data_url';
 let portfolioData = null;
-let prices = {};
+let prices  = {};   // ticker → { price, change, changePct }
+let fxRates = { USD: 1, JPY: 1/150, EUR: 1.08, GBP: 1.27, HKD: 0.128 }; // fallback rates
 let chartAlloc = null, chartPnl = null;
 let refreshTimer = null;
+
+// FX ticker symbols for Yahoo Finance
+const FX_TICKERS = { JPY: 'USDJPY=X', EUR: 'EURUSD=X', GBP: 'GBPUSD=X', HKD: 'HKDUSD=X' };
 
 /* ═══════════════════════════════════════════════════════════════
    BOOT
@@ -313,20 +317,14 @@ let refreshTimer = null;
 function init() {
   const urlParam = new URLSearchParams(location.search).get('data');
   if (urlParam) localStorage.setItem(STORAGE_KEY, urlParam);
-
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    show('dashboard');
-    loadDashboard(saved);
-  } else {
-    show('setup-screen');
-  }
+  if (saved) { show('dashboard'); loadDashboard(saved); }
+  else show('setup-screen');
 }
 
 function show(id) {
-  ['setup-screen','dashboard'].forEach(i => {
-    document.getElementById(i).style.display = i === id ? 'block' : 'none';
-  });
+  ['setup-screen','dashboard'].forEach(i =>
+    document.getElementById(i).style.display = i === id ? 'block' : 'none');
 }
 
 function saveConfig() {
@@ -344,7 +342,7 @@ function resetConfig() {
   show('setup-screen');
 }
 
-function refresh() { const u = localStorage.getItem(STORAGE_KEY); if(u) loadDashboard(u); }
+function refresh() { const u = localStorage.getItem(STORAGE_KEY); if (u) loadDashboard(u); }
 
 /* ═══════════════════════════════════════════════════════════════
    DATA LOAD
@@ -354,22 +352,36 @@ async function loadDashboard(url) {
     const res = await fetch(url + '?_=' + Date.now());
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     portfolioData = await res.json();
-
-    document.getElementById('portfolio-name').textContent =
-      portfolioData.name || 'Portfolio';
+    document.getElementById('portfolio-name').textContent = portfolioData.name || 'Portfolio';
 
     const tickers = Object.keys(portfolioData.holdings || {});
-    if (tickers.length > 0) {
-      prices = await fetchPrices(tickers);
-    } else {
+    // Detect which FX pairs we need based on currencies used
+    const currencies = [...new Set(Object.values(portfolioData.holdings || {})
+      .map(p => p.currency || 'USD').filter(c => c !== 'USD'))];
+    const fxNeeded = currencies.map(c => FX_TICKERS[c]).filter(Boolean);
+    const allSymbols = [...tickers, ...fxNeeded];
+
+    if (allSymbols.length > 0) {
+      const raw = await fetchPrices(allSymbols);
+      // Separate FX rates from stock prices
       prices = {};
+      for (const [sym, data] of Object.entries(raw)) {
+        const fxEntry = Object.entries(FX_TICKERS).find(([, fx]) => fx === sym);
+        if (fxEntry) {
+          const [currency] = fxEntry;
+          // USDJPY=X gives how many JPY per 1 USD → to convert JPY to USD: 1/rate
+          // EURUSD=X gives how many USD per 1 EUR → to convert EUR to USD: rate
+          if (currency === 'JPY' || currency === 'HKD') fxRates[currency] = 1 / data.price;
+          else fxRates[currency] = data.price; // EUR, GBP already in USD terms
+        } else {
+          prices[sym] = data;
+        }
+      }
     }
 
     render();
-
     if (refreshTimer) clearInterval(refreshTimer);
     refreshTimer = setInterval(() => loadDashboard(url), 60000);
-
   } catch (e) {
     document.getElementById('holdings-area').innerHTML =
       `<div class="center-box" style="color:var(--red)">
@@ -381,25 +393,24 @@ async function loadDashboard(url) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   PRICE FETCH  (Yahoo Finance via CORS proxy, with fallback)
+   PRICE FETCH
 ═══════════════════════════════════════════════════════════════ */
+const tryFetch = async (url) => {
+  const r = await fetch(url, { signal: AbortSignal.timeout(9000) });
+  if (!r.ok) throw new Error('non-200');
+  return r.json();
+};
+
 async function fetchPrices(tickers) {
   const result = {};
-
   const yf7 = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${tickers.join(',')}&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent`;
-  const proxy1 = `https://api.allorigins.win/raw?url=${encodeURIComponent(yf7)}`;
-  const proxy2 = `https://corsproxy.io/?${encodeURIComponent(yf7)}`;
-
-  const tryFetch = async (url) => {
-    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) throw new Error('non-200');
-    return r.json();
-  };
 
   let data = null;
-  for (const src of [proxy1, proxy2]) {
-    try { data = await tryFetch(src); break; }
-    catch { /* try next */ }
+  for (const proxy of [
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(yf7)}`,
+    `https://corsproxy.io/?${encodeURIComponent(yf7)}`,
+  ]) {
+    try { data = await tryFetch(proxy); break; } catch { /* try next */ }
   }
 
   if (data?.quoteResponse?.result) {
@@ -412,7 +423,7 @@ async function fetchPrices(tickers) {
     }
   }
 
-  // Fallback: individual chart endpoint for any missing
+  // Individual fallback for any still-missing tickers
   for (const ticker of tickers) {
     if (result[ticker]) continue;
     try {
@@ -424,7 +435,7 @@ async function fetchPrices(tickers) {
         result[ticker] = {
           price: meta.regularMarketPrice,
           change: meta.regularMarketPrice - prev,
-          changePct: (meta.regularMarketPrice - prev) / prev * 100,
+          changePct: prev ? (meta.regularMarketPrice - prev) / prev * 100 : 0,
         };
       }
     } catch { /* leave undefined */ }
@@ -434,13 +445,31 @@ async function fetchPrices(tickers) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   FORMATTING HELPERS
+   CURRENCY HELPERS
 ═══════════════════════════════════════════════════════════════ */
-const USD = n => n == null || isNaN(n) ? '—' :
-  (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+const CUR_SYMBOL = { USD: '$', JPY: '¥', EUR: '€', GBP: '£', HKD: 'HK$' };
 
-const NUM = (n, d=2) => n == null || isNaN(n) ? '—' :
-  n.toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d});
+// Format a native-currency amount
+function MONEY(n, currency = 'USD') {
+  if (n == null || isNaN(n)) return '—';
+  const sym = CUR_SYMBOL[currency] || currency + ' ';
+  const abs = Math.abs(n);
+  // JPY/HKD: no decimals for large numbers
+  const dec = (currency === 'JPY' || currency === 'HKD') ? (abs >= 1000 ? 0 : 1) : 2;
+  return (n < 0 ? '-' : '') + sym + abs.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+// Convert native amount to USD
+function toUSD(amount, currency = 'USD') {
+  return amount * (fxRates[currency] ?? 1);
+}
+
+// Format as USD equivalent
+const USD = n => n == null || isNaN(n) ? '—' :
+  (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const NUM = (n, d = 2) => n == null || isNaN(n) ? '—' :
+  n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 
 const PCT = n => n == null || isNaN(n) ? '—' :
   (n >= 0 ? '+' : '') + NUM(n) + '%';
@@ -452,78 +481,87 @@ const clsPN = n => n >= 0 ? 'pos' : 'neg';
 ═══════════════════════════════════════════════════════════════ */
 function render() {
   const holdings = portfolioData.holdings || {};
-  const cash = portfolioData.cash ?? 0;
-  const gotPrices = Object.keys(prices).length > 0;
+  const cashUSD  = portfolioData.cash ?? 0; // cash stored in USD
 
-  let totalInvested = 0, totalValue = cash, totalPnL = 0;
+  let totalInvestedUSD = 0, totalMktValUSD = cashUSD, totalPnLUSD = 0;
   const rows = [];
 
   for (const [ticker, pos] of Object.entries(holdings)) {
-    const shares    = pos.shares   ?? 0;
-    const avgCost   = pos.avg_cost ?? 0;
-    const brokers   = pos.brokers  ?? null;
-    const pd        = prices[ticker];
-    const curPrice  = pd?.price ?? avgCost;
+    const shares   = pos.shares   ?? 0;
+    const avgCost  = pos.avg_cost ?? 0;
+    const currency = pos.currency || 'USD';
+    const brokers  = pos.brokers  ?? null;
+    const pd       = prices[ticker];
+    const curPrice = pd?.price ?? avgCost; // native currency price
 
-    const invested  = shares * avgCost;
-    const mktVal    = shares * curPrice;
-    const pnl       = mktVal - invested;
-    const pnlPct    = invested > 0 ? (pnl / invested * 100) : 0;
+    // Native currency values
+    const invested = shares * avgCost;
+    const mktVal   = shares * curPrice;
+    const pnl      = mktVal - invested;
+    const pnlPct   = invested > 0 ? (pnl / invested * 100) : 0;
 
-    totalInvested += invested;
-    totalValue    += mktVal;
-    totalPnL      += pnl;
+    // USD-equivalent values (for totals & charts)
+    const investedUSD = toUSD(invested, currency);
+    const mktValUSD   = toUSD(mktVal,   currency);
+    const pnlUSD      = toUSD(pnl,      currency);
 
-    rows.push({ ticker, shares, avgCost, brokers, curPrice, invested, mktVal, pnl, pnlPct, pd });
+    totalInvestedUSD += investedUSD;
+    totalMktValUSD   += mktValUSD;
+    totalPnLUSD      += pnlUSD;
+
+    rows.push({ ticker, shares, avgCost, currency, brokers,
+                curPrice, invested, mktVal, pnl, pnlPct,
+                investedUSD, mktValUSD, pnlUSD, pd });
   }
 
-  const totalPnLPct = totalInvested > 0 ? (totalPnL / totalInvested * 100) : 0;
+  const totalPnLPct = totalInvestedUSD > 0 ? (totalPnLUSD / totalInvestedUSD * 100) : 0;
 
   // Last updated
   const lu = portfolioData.last_updated
     ? new Date(portfolioData.last_updated).toLocaleString() : '—';
   document.getElementById('last-updated').textContent = `Updated ${lu}`;
 
-  // Price note
-  const gotAll  = rows.every(r => prices[r.ticker]);
+  // Price status
   const missing = rows.filter(r => !prices[r.ticker]).map(r => r.ticker);
   document.getElementById('price-note').textContent =
-    gotAll ? '✓ All prices loaded' :
-    missing.length ? `⚠ No price: ${missing.join(', ')} (showing cost basis)` : '';
+    missing.length ? `⚠ No live price for: ${missing.join(', ')} — using cost basis` : '✓ All prices loaded';
 
-  renderCards({ totalValue, totalPnL, totalPnLPct, cash, totalInvested });
+  renderCards({ totalMktValUSD, totalPnLUSD, totalPnLPct, cashUSD, totalInvestedUSD });
   renderTable(rows);
-  renderCharts(rows, cash);
+  renderCharts(rows, cashUSD);
 
   document.getElementById('footer-info').textContent =
-    `${rows.length} position${rows.length !== 1 ? 's' : ''} · Total value ${USD(totalValue)}`;
+    `${rows.length} positions · Total ${USD(totalMktValUSD)} USD equiv.`;
 }
 
-/* ── Cards ────────────────────────────────────────────────────── */
-function renderCards({ totalValue, totalPnL, totalPnLPct, cash, totalInvested }) {
+/* ── Cards ─────────────────────────────────────────────────────── */
+function renderCards({ totalMktValUSD, totalPnLUSD, totalPnLPct, cashUSD, totalInvestedUSD }) {
+  const cashPct     = totalMktValUSD > 0 ? cashUSD / totalMktValUSD * 100 : 0;
+  const investedPct = totalMktValUSD > 0 ? totalInvestedUSD / totalMktValUSD * 100 : 0;
+
   const defs = [
     {
-      label: 'Total Portfolio Value',
-      val: USD(totalValue),
+      label: 'Total Value (USD equiv.)',
+      val: USD(totalMktValUSD),
       sub: null,
       cls: 'blue',
     },
     {
-      label: 'Unrealized P&L',
-      val: `<span class="${clsPN(totalPnL)}">${USD(totalPnL)}</span>`,
+      label: 'Unrealized P&L (USD equiv.)',
+      val: `<span class="${clsPN(totalPnLUSD)}">${USD(totalPnLUSD)}</span>`,
       sub: `<span class="${clsPN(totalPnLPct)}">${PCT(totalPnLPct)}</span>`,
-      cls: totalPnL >= 0 ? 'green' : 'red',
+      cls: totalPnLUSD >= 0 ? 'green' : 'red',
     },
     {
-      label: 'Cash',
-      val: USD(cash),
-      sub: totalValue > 0 ? `${NUM(cash / totalValue * 100)}% of portfolio` : null,
+      label: 'Cash (USD)',
+      val: USD(cashUSD),
+      sub: `${NUM(cashPct)}% of portfolio`,
       cls: 'neutral',
     },
     {
-      label: 'Invested',
-      val: USD(totalInvested),
-      sub: totalValue > 0 ? `${NUM(totalInvested / totalValue * 100)}% of portfolio` : null,
+      label: 'Invested (USD equiv.)',
+      val: USD(totalInvestedUSD),
+      sub: `${NUM(investedPct)}% of portfolio`,
       cls: 'blue',
     },
   ];
@@ -537,11 +575,11 @@ function renderCards({ totalValue, totalPnL, totalPnLPct, cash, totalInvested })
   `).join('');
 }
 
-/* ── Table ────────────────────────────────────────────────────── */
+/* ── Table ─────────────────────────────────────────────────────── */
 function renderTable(rows) {
   if (!rows.length) {
     document.getElementById('holdings-area').innerHTML =
-      '<div class="center-box">No holdings yet — add them from the Admin panel.</div>';
+      '<div class="center-box">No holdings yet.</div>';
     return;
   }
 
@@ -552,7 +590,8 @@ function renderTable(rows) {
         <th>Shares</th>
         <th>Avg Cost</th>
         <th>Current Price</th>
-        <th>Market Value</th>
+        <th>Mkt Value (native)</th>
+        <th>Mkt Value (USD≈)</th>
         <th>Unrealized P&amp;L</th>
         <th>Return %</th>
         <th>Day Change</th>
@@ -562,6 +601,7 @@ function renderTable(rows) {
           <tr>
             <td>
               <span class="ticker-badge">${r.ticker}</span>
+              <span style="font-size:10px;color:var(--text-muted);margin-left:4px">${r.currency}</span>
               ${r.brokers ? `<div class="broker-tags">${
                 Object.entries(r.brokers).map(([name, b]) => {
                   const cls = name.toLowerCase() === 'futu' ? 'futu' : name.toLowerCase() === 'ib' ? 'ib' : '';
@@ -570,15 +610,22 @@ function renderTable(rows) {
               }</div>` : ''}
             </td>
             <td>${NUM(r.shares, r.shares % 1 === 0 ? 0 : 4)}</td>
-            <td>${USD(r.avgCost)}</td>
-            <td>${r.pd ? USD(r.curPrice) : `<span style="color:var(--text-muted)">${USD(r.avgCost)} (est)</span>`}</td>
-            <td>${USD(r.mktVal)}</td>
-            <td class="${clsPN(r.pnl)}">${USD(r.pnl)}</td>
+            <td>${MONEY(r.avgCost, r.currency)}</td>
+            <td>${r.pd
+              ? `${MONEY(r.curPrice, r.currency)}${r.pd.changePct != null
+                  ? `<span class="day-chg ${clsPN(r.pd.changePct)}">${PCT(r.pd.changePct)}</span>` : ''}`
+              : `<span style="color:var(--text-muted)">${MONEY(r.avgCost, r.currency)} (est)</span>`}
+            </td>
+            <td>${MONEY(r.mktVal, r.currency)}</td>
+            <td style="color:var(--text-muted)">${USD(r.mktValUSD)}</td>
+            <td class="${clsPN(r.pnl)}">
+              ${MONEY(r.pnl, r.currency)}
+              <span class="day-chg" style="color:var(--text-muted)">${USD(r.pnlUSD)}</span>
+            </td>
             <td class="${clsPN(r.pnlPct)}">${PCT(r.pnlPct)}</td>
-            <td>
-              ${r.pd
-                ? `<span class="${clsPN(r.pd.changePct)}">${PCT(r.pd.changePct)}<span class="day-chg">${USD(r.pd.change)}</span></span>`
-                : '<span style="color:var(--text-muted)">—</span>'}
+            <td>${r.pd
+              ? `<span class="${clsPN(r.pd.changePct)}">${MONEY(r.pd.change, r.currency)}</span>`
+              : '<span style="color:var(--text-muted)">—</span>'}
             </td>
           </tr>
         `).join('')}
@@ -587,70 +634,72 @@ function renderTable(rows) {
   `;
 }
 
-/* ── Charts ────────────────────────────────────────────────────── */
+/* ── Charts ─────────────────────────────────────────────────────── */
 const PALETTE = [
   '#58a6ff','#3fb950','#d2a8ff','#ffa657','#79c0ff',
   '#56d364','#bc8cff','#ffb347','#a5d6ff','#85e89d',
   '#ff7b72','#f97583','#ffc680','#e3b341','#38bdae',
 ];
 
-function renderCharts(rows, cash) {
-  // Allocation (doughnut)
+function renderCharts(rows, cashUSD) {
+  // ── Allocation doughnut (all USD-equivalent) ──
+  const allocItems = [
+    ...rows.map(r => ({ label: r.ticker, val: Math.max(0, r.mktValUSD) })),
+    ...(cashUSD > 0 ? [{ label: 'Cash (USD)', val: cashUSD }] : []),
+  ];
+
   if (chartAlloc) chartAlloc.destroy();
-  const allocLabels = [...rows.map(r => r.ticker), ...(cash > 0 ? ['Cash'] : [])];
-  const allocVals   = [...rows.map(r => Math.max(0, r.mktVal)), ...(cash > 0 ? [cash] : [])];
   chartAlloc = new Chart(document.getElementById('chart-alloc').getContext('2d'), {
     type: 'doughnut',
     data: {
-      labels: allocLabels,
+      labels: allocItems.map(i => i.label),
       datasets: [{
-        data: allocVals,
-        backgroundColor: PALETTE.slice(0, allocLabels.length),
+        data: allocItems.map(i => i.val),
+        backgroundColor: PALETTE.slice(0, allocItems.length),
         borderColor: '#161b22',
         borderWidth: 2,
         hoverOffset: 6,
-      }]
+      }],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#8b949e', font:{size:11}, boxWidth:12, padding:12 } },
+        legend: { position: 'bottom', labels: { color: '#8b949e', font: { size: 11 }, boxWidth: 12, padding: 10 } },
         tooltip: { callbacks: { label: ctx => {
-          const tot = ctx.dataset.data.reduce((a,b)=>a+b,0);
-          return ` ${ctx.label}: ${USD(ctx.parsed)} (${NUM(ctx.parsed/tot*100)}%)`;
+          const tot = ctx.dataset.data.reduce((a, b) => a + b, 0);
+          return ` ${ctx.label}: ${USD(ctx.parsed)} (${NUM(ctx.parsed / tot * 100)}%)`;
         }}}
-      }
-    }
+      },
+    },
   });
 
-  // P&L bar
+  // ── P&L bar (USD-equivalent) ──
   if (chartPnl) chartPnl.destroy();
   chartPnl = new Chart(document.getElementById('chart-pnl').getContext('2d'), {
     type: 'bar',
     data: {
       labels: rows.map(r => r.ticker),
       datasets: [{
-        label: 'Unrealized P&L',
-        data: rows.map(r => r.pnl),
-        backgroundColor: rows.map(r => r.pnl >= 0 ? '#3fb95033' : '#f8514933'),
-        borderColor: rows.map(r => r.pnl >= 0 ? '#3fb950' : '#f85149'),
-        borderWidth: 2,
-        borderRadius: 5,
-      }]
+        label: 'Unrealized P&L (USD≈)',
+        data: rows.map(r => r.pnlUSD),
+        backgroundColor: rows.map(r => r.pnlUSD >= 0 ? '#3fb95033' : '#f8514933'),
+        borderColor:     rows.map(r => r.pnlUSD >= 0 ? '#3fb950'   : '#f85149'),
+        borderWidth: 2, borderRadius: 5,
+      }],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         tooltip: { callbacks: { label: ctx =>
-          ` ${ctx.parsed.y >= 0 ? '+' : ''}${USD(ctx.parsed.y)} (${PCT(rows[ctx.dataIndex].pnlPct)})`
-        }}
+          ` ${USD(ctx.parsed.y)} (${PCT(rows[ctx.dataIndex].pnlPct)})`
+        }},
       },
       scales: {
-        x: { ticks: { color:'#8b949e', font:{size:11} }, grid: { color:'#21262d' } },
-        y: { ticks: { color:'#8b949e', callback: v => '$'+v.toFixed(0) }, grid: { color:'#21262d' } }
-      }
-    }
+        x: { ticks: { color: '#8b949e', font: { size: 11 } }, grid: { color: '#21262d' } },
+        y: { ticks: { color: '#8b949e', callback: v => '$' + v.toFixed(0) }, grid: { color: '#21262d' } },
+      },
+    },
   });
 }
 
