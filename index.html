@@ -302,6 +302,7 @@ tr:hover td { background: var(--bg-hover); }
    CONFIG & STATE
 ═══════════════════════════════════════════════════════════════ */
 const STORAGE_KEY = 'pf_data_url';
+const DEFAULT_DATA_URL = 'https://raw.githubusercontent.com/Katelynye/my-portfolio/main/data.json';
 let portfolioData = null;
 let prices  = {};   // ticker → { price, change, changePct }
 let fxRates = { USD: 1, JPY: 1/150, EUR: 1.08, GBP: 1.27, HKD: 0.128 }; // fallback rates
@@ -317,9 +318,9 @@ const FX_TICKERS = { JPY: 'USDJPY=X', EUR: 'EURUSD=X', GBP: 'GBPUSD=X', HKD: 'HK
 function init() {
   const urlParam = new URLSearchParams(location.search).get('data');
   if (urlParam) localStorage.setItem(STORAGE_KEY, urlParam);
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) { show('dashboard'); loadDashboard(saved); }
-  else show('setup-screen');
+  const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_DATA_URL;
+  show('dashboard');
+  loadDashboard(saved);
 }
 
 function show(id) {
@@ -342,7 +343,7 @@ function resetConfig() {
   show('setup-screen');
 }
 
-function refresh() { const u = localStorage.getItem(STORAGE_KEY); if (u) loadDashboard(u); }
+function refresh() { const u = localStorage.getItem(STORAGE_KEY) || DEFAULT_DATA_URL; loadDashboard(u); }
 
 /* ═══════════════════════════════════════════════════════════════
    DATA LOAD
