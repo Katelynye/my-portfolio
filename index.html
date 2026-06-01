@@ -316,11 +316,10 @@ const FX_TICKERS = { JPY: 'USDJPY=X', EUR: 'EURUSD=X', GBP: 'GBPUSD=X', HKD: 'HK
    BOOT
 ═══════════════════════════════════════════════════════════════ */
 function init() {
-  const urlParam = new URLSearchParams(location.search).get('data');
-  if (urlParam) localStorage.setItem(STORAGE_KEY, urlParam);
-  const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_DATA_URL;
+  // Always load from the hardcoded URL — ignore any stale localStorage
+  localStorage.removeItem(STORAGE_KEY);
   show('dashboard');
-  loadDashboard(saved);
+  loadDashboard(DEFAULT_DATA_URL);
 }
 
 function show(id) {
