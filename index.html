@@ -304,20 +304,28 @@ tr:hover td { background: var(--bg-hover); }
 // ── Portfolio data embedded directly (no fetch needed) ──────────
 const PORTFOLIO_DATA = {
   "name": "My Portfolio",
-  "cash": 69314.66,
-  "holdings": {
-    "LITX":   { "shares": 800, "avg_cost": 38.943,  "currency": "USD", "brokers": { "Futu": {"shares": 800, "avg_cost": 38.943} } },
-    "MULL":   { "shares": 40,  "avg_cost": 539.7,   "currency": "USD", "brokers": { "Futu": {"shares": 40,  "avg_cost": 539.7} } },
-    "MVLL":   { "shares": 490, "avg_cost": 110.25,  "currency": "USD", "brokers": { "Futu": {"shares": 90, "avg_cost": 147.828}, "IB": {"shares": 400, "avg_cost": 101.79} } },
-    "INTW":   { "shares": 130, "avg_cost": 290.24,  "currency": "USD", "brokers": { "IB": {"shares": 130, "avg_cost": 290.24} } },
-    "AMDL":   { "shares": 340, "avg_cost": 67.04,   "currency": "USD", "brokers": { "IB": {"shares": 340, "avg_cost": 67.04} } },
-    "SOI.PA": { "shares": 57,  "avg_cost": 179.71,  "currency": "EUR", "brokers": { "IB": {"shares": 57, "avg_cost": 179.71} } },
-    "285A.T": { "shares": 200, "avg_cost": 51755.0,  "currency": "JPY", "brokers": { "Futu": {"shares": 100, "avg_cost": 31010.0}, "IB": {"shares": 100, "avg_cost": 72500.0} } },
-    "6976.T": { "shares": 100, "avg_cost": 11625.0,  "currency": "JPY", "brokers": { "Futu": {"shares": 100, "avg_cost": 11625.0} } },
-    "7220.T": { "shares": 400, "avg_cost": 3842.5,   "currency": "JPY", "brokers": { "Futu": {"shares": 400, "avg_cost": 3842.5} } },
-    "5801.T": { "shares": 100, "avg_cost": 52130.0,  "currency": "JPY", "brokers": { "IB": {"shares": 100, "avg_cost": 52130.0} } }
+  // Multi-currency cash (Futu + bank; IB margin positions excluded)
+  "cash_positions": {
+    "USD": 51568.30,        // Futu USD
+    "HKD": 182164.93,       // Futu HKD 22,164.93 + bank 160,000
+    "JPY": 3885079.00       // Futu JPY
   },
-  "last_updated": "2026-06-01T19:10:29.754151+00:00"
+  "holdings": {
+    // ── Futu HK ─────────────────────────────────────────────────
+    "LITX":    { "shares": 400,  "avg_cost": 27.646,  "currency": "USD", "brokers": { "Futu": {"shares": 400,  "avg_cost": 27.646} } },
+    "MULL":    { "shares": 40,   "avg_cost": 539.70,  "currency": "USD", "brokers": { "Futu": {"shares": 40,   "avg_cost": 539.70} } },
+    "7747.HK": { "shares": 1000, "avg_cost": 222.10,  "currency": "HKD", "brokers": { "Futu": {"shares": 1000, "avg_cost": 222.10} } },
+    "6976.T":  { "shares": 100,  "avg_cost": 11625.0, "currency": "JPY", "brokers": { "Futu": {"shares": 100,  "avg_cost": 11625.0} } },
+    // ── IB ──────────────────────────────────────────────────────
+    "SNXX":    { "shares": 1810, "avg_cost": 30.10,   "currency": "USD", "brokers": { "IB": {"shares": 1810, "avg_cost": 30.10} } },
+    "MVLL":    { "shares": 400,  "avg_cost": 101.79,  "currency": "USD", "brokers": { "IB": {"shares": 400,  "avg_cost": 101.79} } },
+    "MUU":     { "shares": 20,   "avg_cost": 932.05,  "currency": "USD", "brokers": { "IB": {"shares": 20,   "avg_cost": 932.05} } },
+    "INTW":    { "shares": 163,  "avg_cost": 285.95,  "currency": "USD", "brokers": { "IB": {"shares": 163,  "avg_cost": 285.95} } },
+    "AVGX":    { "shares": 100,  "avg_cost": 79.65,   "currency": "USD", "brokers": { "IB": {"shares": 100,  "avg_cost": 79.65} } },
+    "5801.T":  { "shares": 100,  "avg_cost": 52130.0, "currency": "JPY", "brokers": { "IB": {"shares": 100,  "avg_cost": 52130.0} } },
+    "285A.T":  { "shares": 100,  "avg_cost": 72500.0, "currency": "JPY", "brokers": { "IB": {"shares": 100,  "avg_cost": 72500.0} } }
+  },
+  "last_updated": "2026-06-04T11:24:00.000000+00:00"
 };
 
 const PRICE_CACHE_KEY = 'pf_price_cache';
@@ -576,7 +584,9 @@ const clsPN = n => n >= 0 ? 'pos' : 'neg';
 ═══════════════════════════════════════════════════════════════ */
 function render() {
   const holdings = portfolioData.holdings || {};
-  const cashUSD  = portfolioData.cash ?? 0; // cash stored in USD
+  // Support both legacy "cash" (USD) and new "cash_positions" (multi-currency)
+  const cashPositions = portfolioData.cash_positions || (portfolioData.cash != null ? { USD: portfolioData.cash } : {});
+  const cashUSD = Object.entries(cashPositions).reduce((sum, [cur, amt]) => sum + toUSD(amt, cur), 0);
 
   let totalInvestedUSD = 0, totalMktValUSD = cashUSD, totalPnLUSD = 0;
   const rows = [];
@@ -621,7 +631,7 @@ function render() {
   document.getElementById('price-note').textContent =
     missing.length ? `⚠ No live price for: ${missing.join(', ')} — using cost basis` : '✓ All prices loaded';
 
-  renderCards({ totalMktValUSD, totalPnLUSD, totalPnLPct, cashUSD, totalInvestedUSD });
+  renderCards({ totalMktValUSD, totalPnLUSD, totalPnLPct, cashUSD, totalInvestedUSD, cashPositions });
   renderTable(rows);
   renderCharts(rows, cashUSD);
 
@@ -630,13 +640,19 @@ function render() {
 }
 
 /* ── Cards ─────────────────────────────────────────────────────── */
-function renderCards({ totalMktValUSD, totalPnLUSD, totalPnLPct, cashUSD, totalInvestedUSD }) {
+function renderCards({ totalMktValUSD, totalPnLUSD, totalPnLPct, cashUSD, totalInvestedUSD, cashPositions }) {
   const cashPct     = totalMktValUSD > 0 ? cashUSD / totalMktValUSD * 100 : 0;
   const investedPct = totalMktValUSD > 0 ? totalInvestedUSD / totalMktValUSD * 100 : 0;
 
   const tsLabel = priceTs
     ? `Prices: ${cacheAge(priceTs)}`
     : 'Prices: estimating…';
+
+  // Cash breakdown line  e.g.  "$51,568 · HK$182,165 · ¥3,885,079"
+  const cashBreakdown = Object.entries(cashPositions || {})
+    .filter(([, v]) => Math.abs(v) > 0)
+    .map(([cur, amt]) => MONEY(amt, cur))
+    .join(' · ');
 
   const defs = [
     {
@@ -652,9 +668,9 @@ function renderCards({ totalMktValUSD, totalPnLUSD, totalPnLPct, cashUSD, totalI
       cls: totalPnLUSD >= 0 ? 'green' : 'red',
     },
     {
-      label: 'Cash (USD)',
+      label: 'Cash (USD equiv.)',
       val: USD(cashUSD),
-      sub: `${NUM(cashPct)}% of portfolio`,
+      sub: `<span style="font-size:11px">${NUM(cashPct)}% · ${cashBreakdown}</span>`,
       cls: 'neutral',
     },
     {
